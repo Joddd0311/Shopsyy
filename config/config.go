@@ -1,45 +1,40 @@
 package config
 
 import (
-	"fmt"
-	"strings"
+	"log"
+	"time"
 
-	"github.com/spf13/viper"
+	"github.com/caarlos0/env"
+	"github.com/joho/godotenv"
+)
+
+const (
+	DatabaseTimeout = 5 * time.Second
 )
 
 type Schema struct {
-	Database struct {
-		Host     string `mapstructure:"host"`
-		Port     int    `mapstructure:"port"`
-		Name     string `mapstructure:"name"`
-		User     string `mapstructure:"user"`
-		Password string `mapstructure:"password"`
-		Env      string `mapstructure:"env"`
-		SSLMode  string `mapstructure:"sslmode"`
-	} `mapstructure:"database"`
+	Environment string `env:"environment"`
+	Port        int    `env:"port"`
+	AuthSecret  string `env:"auth_secret"`
+	DatabaseURI string `env:"database_uri"`
 }
 
-var Config Schema
+var (
+	ProductionEnv = "production"
+	cfg           Schema
+)
 
 func init() {
-	config := viper.New()
-	config.SetConfigName("config")
-	config.AddConfigPath(".")          // Look for config in current directory
-	config.AddConfigPath("config/")    // Optionally look for config in the working directory.
-	config.AddConfigPath("../config/") // Look for config needed for tests.
-	config.AddConfigPath("../")        // Look for config needed for tests.
-
-	config.SetEnvKeyReplacer(strings.NewReplacer(".", "__"))
-	config.AutomaticEnv()
-
-	err := config.ReadInConfig() // Find and read the config file
-	if err != nil {              // Handle errors reading the config file
-		panic(fmt.Errorf("Fatal error config file: %s \n", err))
+	err := godotenv.Load("./config/config.yaml")
+	if err != nil {
+		log.Fatalf("Error on load configuration file, error: %v", err)
 	}
 
-	err = config.Unmarshal(&Config)
-	if err != nil { // Handle errors reading the config file
-		panic(fmt.Errorf("Fatal error config file: %s \n", err))
+	if err := env.Parse(&cfg); err != nil {
+		log.Fatalf("Error on parsing configuration file, error: %v", err)
 	}
-	// fmt.Printf("Current Config: %+v", Config)
+}
+
+func GetConfig() *Schema {
+	return &cfg
 }

@@ -1,6 +1,5 @@
-database:
-  host: localhost:27017
-  name: database
-  env: native
-  user: ######
-  password: ######
+environment: production
+port: 8888
+auth_secret: ######
+
+database_uri: postgres://username:password@host:5432/database
