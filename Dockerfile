@@ -1,13 +1,13 @@
-FROM golang:1.26-alpine
+FROM golang:1.20.5
 
 MAINTAINER quangdp<quangdangfit@gmail.com>
 
 WORKDIR /app
-COPY . .
+COPY . ./
 RUN go mod download
 
-COPY ./pkg/config/config.sample.yaml ./pkg/config/config.yaml
-RUN go build -o /app/goshop ./cmd/api
+COPY ./config/config.sample.yaml ./config/config.yaml
+RUN go build -o /app/goshop
 
 EXPOSE 8888
 ENTRYPOINT ["/app/goshop"]

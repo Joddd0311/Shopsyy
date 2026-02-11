@@ -15,7 +15,7 @@ import (
 type IProductRepository interface {
 	Create(ctx context.Context, product *models.Product) error
 	Update(ctx context.Context, product *models.Product) error
-	ListProducts(ctx context.Context, req serializers.ListProductReq) ([]*models.Product, *paging.Pagination, error)
+	ListProducts(ctx context.Context, req *serializers.ListProductReq) ([]*models.Product, *paging.Pagination, error)
 	GetProductByID(ctx context.Context, id string) (*models.Product, error)
 }
 
@@ -27,7 +27,7 @@ func NewProductRepository() *ProductRepo {
 	return &ProductRepo{db: dbs.Database}
 }
 
-func (r *ProductRepo) ListProducts(ctx context.Context, req serializers.ListProductReq) ([]*models.Product, *paging.Pagination, error) {
+func (r *ProductRepo) ListProducts(ctx context.Context, req *serializers.ListProductReq) ([]*models.Product, *paging.Pagination, error) {
 	ctx, cancel := context.WithTimeout(ctx, config.DatabaseTimeout)
 	defer cancel()
 
@@ -92,21 +92,6 @@ func (r *ProductRepo) Update(ctx context.Context, product *models.Product) error
 	defer cancel()
 
 	if err := r.db.Save(&product).Error; err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (r *ProductRepo) WithTransaction(callback func(*gorm.DB) error) error {
-	tx := r.db.Begin()
-
-	if err := callback(tx); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 

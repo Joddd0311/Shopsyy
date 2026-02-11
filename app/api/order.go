@@ -18,13 +18,22 @@ type OrderAPI struct {
 	service   services.IOrderService
 }
 
-func NewOrderAPI(service services.IOrderService) *OrderAPI {
+func NewOrderAPI(validator validation.Validation, service services.IOrderService) *OrderAPI {
 	return &OrderAPI{
-		validator: validation.New(),
+		validator: validator,
 		service:   service,
 	}
 }
 
+// PlaceOrder godoc
+//
+//	@Summary	place order
+//	@Tags		orders
+//	@Produce	json
+//	@Security	ApiKeyAuth
+//	@Param		_	body		serializers.PlaceOrderReq	true	"Body"
+//	@Success	200	{object}	serializers.Order
+//	@Router		/api/v1/orders [post]
 func (a *OrderAPI) PlaceOrder(c *gin.Context) {
 	var req serializers.PlaceOrderReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -51,6 +60,15 @@ func (a *OrderAPI) PlaceOrder(c *gin.Context) {
 	response.JSON(c, http.StatusOK, res)
 }
 
+// GetOrders godoc
+//
+//	@Summary	get my orders
+//	@Tags		orders
+//	@Produce	json
+//	@Security	ApiKeyAuth
+//	@Param		_	query		serializers.ListOrderReq	true	"Query"
+//	@Success	200	{object}	serializers.ListOrderRes
+//	@Router		/api/v1/orders [get]
 func (a *OrderAPI) GetOrders(c *gin.Context) {
 	var req serializers.ListOrderReq
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -73,6 +91,15 @@ func (a *OrderAPI) GetOrders(c *gin.Context) {
 	response.JSON(c, http.StatusOK, res)
 }
 
+// GetOrderByID godoc
+//
+//	@Summary	get order details
+//	@Tags		orders
+//	@Produce	json
+//	@Security	ApiKeyAuth
+//	@Param		id	path		string	true	"Order ID"
+//	@Success	200	{object}	serializers.Order
+//	@Router		/api/v1/orders/{id} [get]
 func (a *OrderAPI) GetOrderByID(c *gin.Context) {
 	orderId := c.Param("id")
 	order, err := a.service.GetOrderByID(c, orderId)
@@ -87,6 +114,14 @@ func (a *OrderAPI) GetOrderByID(c *gin.Context) {
 	response.JSON(c, http.StatusOK, res)
 }
 
+// CancelOrder godoc
+//
+//	@Summary	cancel order
+//	@Tags		orders
+//	@Produce	json
+//	@Security	ApiKeyAuth
+//	@Param		id	path	string	true	"Order ID"
+//	@Router		/api/v1/orders/{id}/cancel [put]
 func (a *OrderAPI) CancelOrder(c *gin.Context) {
 	orderID := c.Param("id")
 	userID := c.GetString("userId")

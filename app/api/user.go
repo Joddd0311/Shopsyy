@@ -18,13 +18,21 @@ type UserAPI struct {
 	service   services.IUserService
 }
 
-func NewUserAPI(service services.IUserService) *UserAPI {
+func NewUserAPI(validator validation.Validation, service services.IUserService) *UserAPI {
 	return &UserAPI{
-		validator: validation.New(),
+		validator: validator,
 		service:   service,
 	}
 }
 
+// Login godoc
+//
+//	@Summary	Login
+//	@Tags		users
+//	@Produce	json
+//	@Param		_	body		serializers.LoginReq	true	"Body"
+//	@Success	200	{object}	serializers.LoginRes
+//	@Router		/auth/login [post]
 func (u *UserAPI) Login(c *gin.Context) {
 	var req serializers.LoginReq
 	if err := c.ShouldBindJSON(&req); c.Request.Body == nil || err != nil {
@@ -55,8 +63,9 @@ func (u *UserAPI) Login(c *gin.Context) {
 // Register godoc
 //
 //	@Summary	Register new user
+//	@Tags		users
 //	@Produce	json
-//	@Param		b	body		serializers.RegisterReq	true	"Body"
+//	@Param		_	body		serializers.RegisterReq	true	"Body"
 //	@Success	200	{object}	serializers.RegisterRes
 //	@Router		/auth/register [post]
 func (u *UserAPI) Register(c *gin.Context) {
@@ -84,6 +93,14 @@ func (u *UserAPI) Register(c *gin.Context) {
 	response.JSON(c, http.StatusOK, res)
 }
 
+// GetMe godoc
+//
+//	@Summary	get my profile
+//	@Tags		users
+//	@Security	ApiKeyAuth
+//	@Produce	json
+//	@Success	200	{object}	serializers.User
+//	@Router		/auth/me [get]
 func (u *UserAPI) GetMe(c *gin.Context) {
 	userID := c.GetString("userId")
 	user, err := u.service.GetUserByID(c, userID)
@@ -113,6 +130,14 @@ func (u *UserAPI) RefreshToken(c *gin.Context) {
 	response.JSON(c, http.StatusOK, res)
 }
 
+// ChangePassword godoc
+//
+//	@Summary	changes the password
+//	@Tags		users
+//	@Security	ApiKeyAuth
+//	@Produce	json
+//	@Param		_	body	serializers.ChangePasswordReq	true	"Body"
+//	@Router		/auth/change-password [put]
 func (u *UserAPI) ChangePassword(c *gin.Context) {
 	var req serializers.ChangePasswordReq
 	if err := c.ShouldBindJSON(&req); c.Request.Body == nil || err != nil {

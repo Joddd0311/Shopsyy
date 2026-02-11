@@ -1,8 +1,8 @@
 version: "3.8"
 services:
   goshop:
-    image: "github.com/quangdangfit/goshop"
     build: .
+    image: "github.com/quangdangfit/goshop"
     ports:
       - "8888:8888"
     environment:
@@ -17,16 +17,11 @@ services:
       - redis
 
   redis:
-    image: redis:7-alpine
-    restart: always
-    ports:                 
-      - "6379:6379"
+    image: "redis:alpine"
 
   postgres:
     restart: always
     image: "postgres:latest"
-    ports:
-    - "5432:5432"
     environment:
       DATABASE_USER: postgres
       POSTGRES_PASSWORD: 1234

@@ -12,10 +12,8 @@ coverage:
         if_not_found: success
 
 ignore:
-  - "**/mocks/"
-  - "cmd/"
-  - "docs/"
+  - "mocks/"
   - "pkg/"
   - "vendor/"
-  - "proto/"
-  - "internal/server"
+  - "config/"
+  - "main.go"
