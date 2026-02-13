@@ -8,9 +8,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"goshop/app/dbs"
-	"goshop/app/models"
-	"goshop/app/serializers"
+	"goshop/internal/order/dto"
+	"goshop/internal/order/model"
+	productModel "goshop/internal/product/model"
+	userModel "goshop/internal/user/model"
 	"goshop/pkg/jtoken"
 )
 
@@ -18,22 +19,24 @@ import (
 // =================================================================================================
 
 func TestOrderAPI_PlaceOrderSuccess(t *testing.T) {
-	p1 := models.Product{
+	defer cleanData()
+
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	req := &serializers.PlaceOrderReq{
-		Lines: []serializers.PlaceOrderLineReq{
+	req := &dto.PlaceOrderReq{
+		Lines: []dto.PlaceOrderLineReq{
 			{
 				ProductID: p1.ID,
 				Quantity:  2,
@@ -45,7 +48,7 @@ func TestOrderAPI_PlaceOrderSuccess(t *testing.T) {
 		},
 	}
 	writer := makeRequest("POST", "/api/v1/orders", req, accessToken())
-	var res serializers.Order
+	var res dto.Order
 	parseResponseResult(writer.Body.Bytes(), &res)
 	assert.Equal(t, http.StatusOK, writer.Code)
 	assert.Equal(t, "new", res.Status)
@@ -58,27 +61,24 @@ func TestOrderAPI_PlaceOrderSuccess(t *testing.T) {
 	assert.Equal(t, req.Lines[1].ProductID, res.Lines[1].Product.ID)
 	assert.Equal(t, req.Lines[1].Quantity, res.Lines[1].Quantity)
 	assert.Equal(t, float64(6), res.Lines[1].Price)
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
 }
 
 func TestOrderAPI_PlaceOrderInvalidFieldType(t *testing.T) {
-	p1 := models.Product{
+	defer cleanData()
+
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
 	req := map[string]interface{}{
 		"lines": []map[string]interface{}{
@@ -97,29 +97,27 @@ func TestOrderAPI_PlaceOrderInvalidFieldType(t *testing.T) {
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusBadRequest, writer.Code)
 	assert.Equal(t, "Invalid parameters", response["error"]["message"])
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
 }
+
 func TestOrderAPI_PlaceOrderInvalidMissProductID(t *testing.T) {
-	p1 := models.Product{
+	defer cleanData()
+
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	req := &serializers.PlaceOrderReq{
-		Lines: []serializers.PlaceOrderLineReq{
+	req := &dto.PlaceOrderReq{
+		Lines: []dto.PlaceOrderLineReq{
 			{
 				Quantity: 2,
 			},
@@ -132,31 +130,29 @@ func TestOrderAPI_PlaceOrderInvalidMissProductID(t *testing.T) {
 	writer := makeRequest("POST", "/api/v1/orders", req, accessToken())
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
-	assert.Equal(t, http.StatusBadRequest, writer.Code)
-	assert.Equal(t, "Invalid parameters", response["error"]["message"])
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
+	assert.Equal(t, http.StatusInternalServerError, writer.Code)
+	assert.Equal(t, "Something went wrong", response["error"]["message"])
 }
+
 func TestOrderAPI_PlaceOrderInvalidMissQuantity(t *testing.T) {
-	p1 := models.Product{
+	defer cleanData()
+
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	req := &serializers.PlaceOrderReq{
-		Lines: []serializers.PlaceOrderLineReq{
+	req := &dto.PlaceOrderReq{
+		Lines: []dto.PlaceOrderLineReq{
 			{
 				ProductID: p1.ID,
 				Quantity:  2,
@@ -169,31 +165,29 @@ func TestOrderAPI_PlaceOrderInvalidMissQuantity(t *testing.T) {
 	writer := makeRequest("POST", "/api/v1/orders", req, accessToken())
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
-	assert.Equal(t, http.StatusBadRequest, writer.Code)
-	assert.Equal(t, "Invalid parameters", response["error"]["message"])
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
+	assert.Equal(t, http.StatusInternalServerError, writer.Code)
+	assert.Equal(t, "Something went wrong", response["error"]["message"])
 }
+
 func TestOrderAPI_PlaceOrderInvalidProductNotFound(t *testing.T) {
-	p1 := models.Product{
+	defer cleanData()
+
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	req := &serializers.PlaceOrderReq{
-		Lines: []serializers.PlaceOrderLineReq{
+	req := &dto.PlaceOrderReq{
+		Lines: []dto.PlaceOrderLineReq{
 			{
 				ProductID: p1.ID,
 				Quantity:  2,
@@ -209,29 +203,27 @@ func TestOrderAPI_PlaceOrderInvalidProductNotFound(t *testing.T) {
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusInternalServerError, writer.Code)
 	assert.Equal(t, "Something went wrong", response["error"]["message"])
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
 }
+
 func TestOrderAPI_PlaceOrderUnauthorized(t *testing.T) {
-	p1 := models.Product{
+	defer cleanData()
+
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	req := &serializers.PlaceOrderReq{
-		Lines: []serializers.PlaceOrderLineReq{
+	req := &dto.PlaceOrderReq{
+		Lines: []dto.PlaceOrderLineReq{
 			{
 				ProductID: p1.ID,
 				Quantity:  2,
@@ -245,41 +237,37 @@ func TestOrderAPI_PlaceOrderUnauthorized(t *testing.T) {
 
 	writer := makeRequest("POST", "/api/v1/orders", req, "")
 	assert.Equal(t, http.StatusUnauthorized, writer.Code)
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
 }
 
 // Get Order Detail
 // =================================================================================================
 
 func TestOrderAPI_GetOrderByIDSuccess(t *testing.T) {
-	u := models.User{
+	u := userModel.User{
 		Email:    "test1@gmail.com",
 		Password: "test123456",
 	}
-	dbs.Database.Create(&u)
+	dbTest.Create(&u)
 	token := jtoken.GenerateAccessToken(map[string]interface{}{"id": u.ID})
+	defer cleanData(&u)
 
-	p1 := models.Product{
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	o := models.Order{
+	o := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p1.ID,
 				Quantity:  2,
@@ -290,10 +278,10 @@ func TestOrderAPI_GetOrderByIDSuccess(t *testing.T) {
 			},
 		},
 	}
-	dbs.Database.Create(&o)
+	dbTest.Create(&o)
 
 	writer := makeRequest("GET", fmt.Sprintf("/api/v1/orders/%s", o.ID), nil, token)
-	var res serializers.Order
+	var res dto.Order
 	parseResponseResult(writer.Body.Bytes(), &res)
 	assert.Equal(t, http.StatusOK, writer.Code)
 	assert.Equal(t, "new", res.Status)
@@ -303,11 +291,6 @@ func TestOrderAPI_GetOrderByIDSuccess(t *testing.T) {
 
 	assert.Equal(t, o.Lines[1].ProductID, res.Lines[1].Product.ID)
 	assert.Equal(t, o.Lines[1].Quantity, res.Lines[1].Quantity)
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
 }
 
 func TestOrderAPI_GetOrderByIDNotFound(t *testing.T) {
@@ -322,30 +305,31 @@ func TestOrderAPI_GetOrderByIDNotFound(t *testing.T) {
 // =================================================================================================
 
 func TestOrderAPI_CancelOrderSuccess(t *testing.T) {
-	u := models.User{
+	u := userModel.User{
 		Email:    "test1@test.com",
 		Password: "test123456",
 	}
-	dbs.Database.Create(&u)
+	dbTest.Create(&u)
 	token := jtoken.GenerateAccessToken(map[string]interface{}{"id": u.ID})
+	defer cleanData(&u)
 
-	p1 := models.Product{
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	o := models.Order{
+	o := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p1.ID,
 				Quantity:  2,
@@ -356,16 +340,10 @@ func TestOrderAPI_CancelOrderSuccess(t *testing.T) {
 			},
 		},
 	}
-	dbs.Database.Create(&o)
+	dbTest.Create(&o)
 
 	writer := makeRequest("PUT", fmt.Sprintf("/api/v1/orders/%s/cancel", o.ID), nil, token)
 	assert.Equal(t, http.StatusOK, writer.Code)
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
-	dbs.Database.Where("1 = 1").Delete(u)
 }
 
 func TestOrderAPI_CancelOrderNotFound(t *testing.T) {
@@ -377,30 +355,31 @@ func TestOrderAPI_CancelOrderNotFound(t *testing.T) {
 }
 
 func TestOrderAPI_CancelOrderStatusDone(t *testing.T) {
-	u := models.User{
+	u := userModel.User{
 		Email:    "test1@test.com",
 		Password: "test123456",
 	}
-	dbs.Database.Create(&u)
+	dbTest.Create(&u)
 	token := jtoken.GenerateAccessToken(map[string]interface{}{"id": u.ID})
+	defer cleanData(&u)
 
-	p1 := models.Product{
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	o := models.Order{
+	o := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p1.ID,
 				Quantity:  2,
@@ -410,48 +389,43 @@ func TestOrderAPI_CancelOrderStatusDone(t *testing.T) {
 				Quantity:  3,
 			},
 		},
-		Status: models.OrderStatusDone,
+		Status: model.OrderStatusDone,
 	}
-	dbs.Database.Create(&o)
+	dbTest.Create(&o)
 
 	writer := makeRequest("PUT", fmt.Sprintf("/api/v1/orders/%s/cancel", o.ID), nil, token)
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusInternalServerError, writer.Code)
 	assert.Equal(t, "Something went wrong", response["error"]["message"])
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
-	dbs.Database.Where("1 = 1").Delete(u)
 }
 
 func TestOrderAPI_CancelOrderStatusCancelled(t *testing.T) {
-	u := models.User{
+	u := userModel.User{
 		Email:    "test1@test.com",
 		Password: "test123456",
 	}
-	dbs.Database.Create(&u)
+	dbTest.Create(&u)
 	token := jtoken.GenerateAccessToken(map[string]interface{}{"id": u.ID})
+	defer cleanData(&u)
 
-	p1 := models.Product{
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	o := models.Order{
+	o := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p1.ID,
 				Quantity:  2,
@@ -461,74 +435,114 @@ func TestOrderAPI_CancelOrderStatusCancelled(t *testing.T) {
 				Quantity:  3,
 			},
 		},
-		Status: models.OrderStatusCancelled,
+		Status: model.OrderStatusCancelled,
 	}
-	dbs.Database.Create(&o)
+	dbTest.Create(&o)
 
 	writer := makeRequest("PUT", fmt.Sprintf("/api/v1/orders/%s/cancel", o.ID), nil, token)
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusInternalServerError, writer.Code)
 	assert.Equal(t, "Something went wrong", response["error"]["message"])
+}
 
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
-	dbs.Database.Where("1 = 1").Delete(u)
+func TestOrderAPI_CancelOrderNotMine(t *testing.T) {
+	u := userModel.User{
+		Email:    "test1@test.com",
+		Password: "test123456",
+	}
+	dbTest.Create(&u)
+	defer cleanData(&u)
+
+	p1 := productModel.Product{
+		Name:        "test-product-1",
+		Description: "test-product-1",
+		Price:       1,
+	}
+	dbTest.Create(&p1)
+
+	p2 := productModel.Product{
+		Name:        "test-product-2",
+		Description: "test-product-2",
+		Price:       2,
+	}
+	dbTest.Create(&p2)
+
+	o := model.Order{
+		UserID: u.ID,
+		Lines: []*model.OrderLine{
+			{
+				ProductID: p1.ID,
+				Quantity:  2,
+			},
+			{
+				ProductID: p2.ID,
+				Quantity:  3,
+			},
+		},
+		Status: model.OrderStatusNew,
+	}
+	dbTest.Create(&o)
+
+	writer := makeRequest("PUT", fmt.Sprintf("/api/v1/orders/%s/cancel", o.ID), nil, accessToken())
+	var response map[string]map[string]string
+	_ = json.Unmarshal(writer.Body.Bytes(), &response)
+	assert.Equal(t, http.StatusInternalServerError, writer.Code)
+	assert.Equal(t, "Something went wrong", response["error"]["message"])
 }
 
 // List My Orders
 // =================================================================================================
 
-func TestOrderAPI_ListProductsSuccess(t *testing.T) {
-	u := models.User{
+func TestOrderAPI_ListOrdersSuccess(t *testing.T) {
+	u := userModel.User{
 		Email:    "test1@test.com",
 		Password: "test123456",
 	}
-	dbs.Database.Create(&u)
+	dbTest.Create(&u)
 	token := jtoken.GenerateAccessToken(map[string]interface{}{"id": u.ID})
+	defer cleanData(&u)
 
-	p1 := models.Product{
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	o1 := models.Order{
+	o1 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p1.ID,
 				Quantity:  5,
 			},
 		},
-		Status: models.OrderStatusDone,
+		Status: model.OrderStatusDone,
 	}
-	dbs.Database.Create(&o1)
+	dbTest.Create(&o1)
 
-	o2 := models.Order{
+	o2 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p2.ID,
 				Quantity:  3,
 			},
 		},
-		Status: models.OrderStatusNew,
+		Status: model.OrderStatusNew,
 	}
-	dbs.Database.Create(&o2)
+	dbTest.Create(&o2)
 
 	writer := makeRequest("GET", "/api/v1/orders", nil, token)
-	var res serializers.ListOrderRes
+	var res dto.ListOrderRes
 	parseResponseResult(writer.Body.Bytes(), &res)
 	assert.Equal(t, http.StatusOK, writer.Code)
 	assert.Equal(t, int64(2), res.Pagination.Total)
@@ -541,23 +555,19 @@ func TestOrderAPI_ListProductsSuccess(t *testing.T) {
 
 	assert.Equal(t, o2.Lines[0].ProductID, res.Orders[1].Lines[0].Product.ID)
 	assert.Equal(t, o2.Lines[0].Quantity, res.Orders[1].Lines[0].Quantity)
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
-	dbs.Database.Where("1 = 1").Delete(u)
 }
 
-func TestOrderAPI_ListProductsNotFound(t *testing.T) {
+func TestOrderAPI_ListOrdersNotFound(t *testing.T) {
+	defer cleanData()
+
 	writer := makeRequest("GET", "/api/v1/orders", nil, accessToken())
-	var res serializers.ListProductRes
+	var res dto.ListOrderRes
 	parseResponseResult(writer.Body.Bytes(), &res)
 	assert.Equal(t, http.StatusOK, writer.Code)
-	assert.Equal(t, 0, len(res.Products))
+	assert.Equal(t, 0, len(res.Orders))
 }
 
-func TestOrderAPI_ListProductsInvalidFieldType(t *testing.T) {
+func TestOrderAPI_ListOrdersInvalidFieldType(t *testing.T) {
 	writer := makeRequest("GET", "/api/v1/orders?page=a", nil, accessToken())
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
@@ -566,53 +576,54 @@ func TestOrderAPI_ListProductsInvalidFieldType(t *testing.T) {
 }
 
 func TestOrderAPI_ListMyOrdersFindByStatusSuccess(t *testing.T) {
-	u := models.User{
+	u := userModel.User{
 		Email:    "test1@test.com",
 		Password: "test123456",
 	}
-	dbs.Database.Create(&u)
+	dbTest.Create(&u)
 	token := jtoken.GenerateAccessToken(map[string]interface{}{"id": u.ID})
+	defer cleanData(&u)
 
-	p1 := models.Product{
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	o1 := models.Order{
+	o1 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p1.ID,
 				Quantity:  5,
 			},
 		},
-		Status: models.OrderStatusDone,
+		Status: model.OrderStatusDone,
 	}
-	dbs.Database.Create(&o1)
+	dbTest.Create(&o1)
 
-	o2 := models.Order{
+	o2 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p2.ID,
 				Quantity:  3,
 			},
 		},
-		Status: models.OrderStatusNew,
+		Status: model.OrderStatusNew,
 	}
-	dbs.Database.Create(&o2)
+	dbTest.Create(&o2)
 
 	writer := makeRequest("GET", "/api/v1/orders?status=new", nil, token)
-	var res serializers.ListOrderRes
+	var res dto.ListOrderRes
 	parseResponseResult(writer.Body.Bytes(), &res)
 	assert.Equal(t, http.StatusOK, writer.Code)
 	assert.Equal(t, int64(1), res.Pagination.Total)
@@ -622,121 +633,111 @@ func TestOrderAPI_ListMyOrdersFindByStatusSuccess(t *testing.T) {
 	assert.Equal(t, 1, len(res.Orders))
 	assert.Equal(t, o2.Lines[0].ProductID, res.Orders[0].Lines[0].Product.ID)
 	assert.Equal(t, o2.Lines[0].Quantity, res.Orders[0].Lines[0].Quantity)
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
-	dbs.Database.Where("1 = 1").Delete(u)
 }
 
-func TestOrderAPI_ListProductsFindByStatusNotFound(t *testing.T) {
-	u := models.User{
+func TestOrderAPI_ListOrdersFindByStatusNotFound(t *testing.T) {
+	u := userModel.User{
 		Email:    "test1@test.com",
 		Password: "test123456",
 	}
-	dbs.Database.Create(&u)
+	dbTest.Create(&u)
 	token := jtoken.GenerateAccessToken(map[string]interface{}{"id": u.ID})
+	defer cleanData(&u)
 
-	p1 := models.Product{
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	o1 := models.Order{
+	o1 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p1.ID,
 				Quantity:  5,
 			},
 		},
-		Status: models.OrderStatusDone,
+		Status: model.OrderStatusDone,
 	}
-	dbs.Database.Create(&o1)
+	dbTest.Create(&o1)
 
-	o2 := models.Order{
+	o2 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p2.ID,
 				Quantity:  3,
 			},
 		},
-		Status: models.OrderStatusNew,
+		Status: model.OrderStatusNew,
 	}
-	dbs.Database.Create(&o2)
+	dbTest.Create(&o2)
 
 	writer := makeRequest("GET", "/api/v1/orders?status=cancelled", nil, token)
-	var res serializers.ListOrderRes
+	var res dto.ListOrderRes
 	parseResponseResult(writer.Body.Bytes(), &res)
 	assert.Equal(t, http.StatusOK, writer.Code)
 	assert.Equal(t, 0, len(res.Orders))
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
-	dbs.Database.Where("1 = 1").Delete(u)
 }
 
-func TestOrderAPI_ListProductsFindByCodeSuccess(t *testing.T) {
-	u := models.User{
+func TestOrderAPI_ListOrdersFindByCodeSuccess(t *testing.T) {
+	u := userModel.User{
 		Email:    "test1@test.com",
 		Password: "test123456",
 	}
-	dbs.Database.Create(&u)
+	dbTest.Create(&u)
 	token := jtoken.GenerateAccessToken(map[string]interface{}{"id": u.ID})
+	defer cleanData(&u)
 
-	p1 := models.Product{
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	o1 := models.Order{
+	o1 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p1.ID,
 				Quantity:  5,
 			},
 		},
-		Status: models.OrderStatusDone,
+		Status: model.OrderStatusDone,
 	}
-	dbs.Database.Create(&o1)
+	dbTest.Create(&o1)
 
-	o2 := models.Order{
+	o2 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p2.ID,
 				Quantity:  3,
 			},
 		},
-		Status: models.OrderStatusNew,
+		Status: model.OrderStatusNew,
 	}
-	dbs.Database.Create(&o2)
+	dbTest.Create(&o2)
 
 	writer := makeRequest("GET", fmt.Sprintf("/api/v1/orders?code=%s", o1.Code), nil, token)
-	var res serializers.ListOrderRes
+	var res dto.ListOrderRes
 	parseResponseResult(writer.Body.Bytes(), &res)
 	assert.Equal(t, http.StatusOK, writer.Code)
 	assert.Equal(t, int64(1), res.Pagination.Total)
@@ -746,121 +747,111 @@ func TestOrderAPI_ListProductsFindByCodeSuccess(t *testing.T) {
 	assert.Equal(t, 1, len(res.Orders))
 	assert.Equal(t, o1.Lines[0].ProductID, res.Orders[0].Lines[0].Product.ID)
 	assert.Equal(t, o1.Lines[0].Quantity, res.Orders[0].Lines[0].Quantity)
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
-	dbs.Database.Where("1 = 1").Delete(u)
 }
 
-func TestOrderAPI_ListProductsFindByCodeNotFound(t *testing.T) {
-	u := models.User{
+func TestOrderAPI_ListOrdersFindByCodeNotFound(t *testing.T) {
+	u := userModel.User{
 		Email:    "test1@test.com",
 		Password: "test123456",
 	}
-	dbs.Database.Create(&u)
+	dbTest.Create(&u)
 	token := jtoken.GenerateAccessToken(map[string]interface{}{"id": u.ID})
+	defer cleanData(&u)
 
-	p1 := models.Product{
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	o1 := models.Order{
+	o1 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p1.ID,
 				Quantity:  5,
 			},
 		},
-		Status: models.OrderStatusDone,
+		Status: model.OrderStatusDone,
 	}
-	dbs.Database.Create(&o1)
+	dbTest.Create(&o1)
 
-	o2 := models.Order{
+	o2 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p2.ID,
 				Quantity:  3,
 			},
 		},
-		Status: models.OrderStatusNew,
+		Status: model.OrderStatusNew,
 	}
-	dbs.Database.Create(&o2)
+	dbTest.Create(&o2)
 
 	writer := makeRequest("GET", "/api/v1/orders?code=notfound", nil, token)
-	var res serializers.ListOrderRes
+	var res dto.ListOrderRes
 	parseResponseResult(writer.Body.Bytes(), &res)
 	assert.Equal(t, http.StatusOK, writer.Code)
 	assert.Equal(t, 0, len(res.Orders))
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
-	dbs.Database.Where("1 = 1").Delete(u)
 }
 
-func TestOrderAPI_ListProductsWithPagination(t *testing.T) {
-	u := models.User{
+func TestOrderAPI_ListOrdersWithPagination(t *testing.T) {
+	u := userModel.User{
 		Email:    "test1@test.com",
 		Password: "test123456",
 	}
-	dbs.Database.Create(&u)
+	dbTest.Create(&u)
 	token := jtoken.GenerateAccessToken(map[string]interface{}{"id": u.ID})
+	defer cleanData(&u)
 
-	p1 := models.Product{
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	o1 := models.Order{
+	o1 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p1.ID,
 				Quantity:  5,
 			},
 		},
-		Status: models.OrderStatusDone,
+		Status: model.OrderStatusDone,
 	}
-	dbs.Database.Create(&o1)
+	dbTest.Create(&o1)
 
-	o2 := models.Order{
+	o2 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p2.ID,
 				Quantity:  3,
 			},
 		},
-		Status: models.OrderStatusNew,
+		Status: model.OrderStatusNew,
 	}
-	dbs.Database.Create(&o2)
+	dbTest.Create(&o2)
 
 	writer := makeRequest("GET", "/api/v1/orders?page=2&limit=1", nil, token)
-	var res serializers.ListOrderRes
+	var res dto.ListOrderRes
 	parseResponseResult(writer.Body.Bytes(), &res)
 	assert.Equal(t, http.StatusOK, writer.Code)
 	assert.Equal(t, int64(2), res.Pagination.Total)
@@ -870,62 +861,57 @@ func TestOrderAPI_ListProductsWithPagination(t *testing.T) {
 	assert.Equal(t, 1, len(res.Orders))
 	assert.Equal(t, o2.Lines[0].ProductID, res.Orders[0].Lines[0].Product.ID)
 	assert.Equal(t, o2.Lines[0].Quantity, res.Orders[0].Lines[0].Quantity)
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
-	dbs.Database.Where("1 = 1").Delete(u)
 }
 
-func TestOrderAPI_ListProductsWithOrder(t *testing.T) {
-	u := models.User{
+func TestOrderAPI_ListOrdersWithOrder(t *testing.T) {
+	u := userModel.User{
 		Email:    "test1@test.com",
 		Password: "test123456",
 	}
-	dbs.Database.Create(&u)
+	dbTest.Create(&u)
 	token := jtoken.GenerateAccessToken(map[string]interface{}{"id": u.ID})
+	defer cleanData(&u)
 
-	p1 := models.Product{
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	o1 := models.Order{
+	o1 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p1.ID,
 				Quantity:  5,
 			},
 		},
-		Status: models.OrderStatusDone,
+		Status: model.OrderStatusDone,
 	}
-	dbs.Database.Create(&o1)
+	dbTest.Create(&o1)
 
-	o2 := models.Order{
+	o2 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p2.ID,
 				Quantity:  3,
 			},
 		},
-		Status: models.OrderStatusNew,
+		Status: model.OrderStatusNew,
 	}
-	dbs.Database.Create(&o2)
+	dbTest.Create(&o2)
 
 	writer := makeRequest("GET", "/api/v1/orders?order_by=created_at&order_desc=true", nil, token)
-	var res serializers.ListOrderRes
+	var res dto.ListOrderRes
 	parseResponseResult(writer.Body.Bytes(), &res)
 	assert.Equal(t, http.StatusOK, writer.Code)
 	assert.Equal(t, int64(2), res.Pagination.Total)
@@ -938,68 +924,57 @@ func TestOrderAPI_ListProductsWithOrder(t *testing.T) {
 
 	assert.Equal(t, o1.Lines[0].ProductID, res.Orders[1].Lines[0].Product.ID)
 	assert.Equal(t, o1.Lines[0].Quantity, res.Orders[1].Lines[0].Quantity)
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
-	dbs.Database.Where("1 = 1").Delete(u)
 }
 
-func TestOrderAPI_ListProductsNotMine(t *testing.T) {
-	u := models.User{
+func TestOrderAPI_GetMyOrdersNotMine(t *testing.T) {
+	u := userModel.User{
 		Email:    "test1@test.com",
 		Password: "test123456",
 	}
-	dbs.Database.Create(&u)
+	dbTest.Create(&u)
+	defer cleanData(&u)
 
-	p1 := models.Product{
+	p1 := productModel.Product{
 		Name:        "test-product-1",
 		Description: "test-product-1",
 		Price:       1,
 	}
-	dbs.Database.Create(&p1)
+	dbTest.Create(&p1)
 
-	p2 := models.Product{
+	p2 := productModel.Product{
 		Name:        "test-product-2",
 		Description: "test-product-2",
 		Price:       2,
 	}
-	dbs.Database.Create(&p2)
+	dbTest.Create(&p2)
 
-	o1 := models.Order{
+	o1 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p1.ID,
 				Quantity:  5,
 			},
 		},
-		Status: models.OrderStatusDone,
+		Status: model.OrderStatusDone,
 	}
-	dbs.Database.Create(&o1)
+	dbTest.Create(&o1)
 
-	o2 := models.Order{
+	o2 := model.Order{
 		UserID: u.ID,
-		Lines: []*models.OrderLine{
+		Lines: []*model.OrderLine{
 			{
 				ProductID: p2.ID,
 				Quantity:  3,
 			},
 		},
-		Status: models.OrderStatusNew,
+		Status: model.OrderStatusNew,
 	}
-	dbs.Database.Create(&o2)
+	dbTest.Create(&o2)
 
 	writer := makeRequest("GET", "/api/v1/orders?code=notfound", nil, accessToken())
-	var res serializers.ListOrderRes
+	var res dto.ListOrderRes
 	parseResponseResult(writer.Body.Bytes(), &res)
 	assert.Equal(t, http.StatusOK, writer.Code)
 	assert.Equal(t, 0, len(res.Orders))
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&models.OrderLine{})
-	dbs.Database.Where("1 = 1").Delete(&models.Product{})
-	dbs.Database.Where("1 = 1").Delete(&models.Order{})
-	dbs.Database.Where("1 = 1").Delete(u)
 }

@@ -10,17 +10,24 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/quangdangfit/gocommon/logger"
+	"github.com/quangdangfit/gocommon/redis"
+	"github.com/quangdangfit/gocommon/validation"
+	"gorm.io/gorm"
 
-	"goshop/app"
-	"goshop/app/dbs"
-	"goshop/app/models"
-	"goshop/app/serializers"
-	"goshop/config"
+	orderModel "goshop/internal/order/model"
+	productModel "goshop/internal/product/model"
+	httpServer "goshop/internal/server/http"
+	"goshop/internal/user/dto"
+	userModel "goshop/internal/user/model"
+	"goshop/pkg/config"
+	"goshop/pkg/dbs"
 	"goshop/pkg/utils"
 )
 
 var (
 	testRouter *gin.Engine
+	dbTest     *gorm.DB
+	testCache  redis.IRedis
 )
 
 func TestMain(m *testing.M) {
@@ -34,22 +41,34 @@ func TestMain(m *testing.M) {
 
 func setup() {
 	cfg := config.GetConfig()
-	logger.Initialize(cfg.Environment)
+	logger.Initialize(config.TestEnv)
 
-	dbs.Init()
+	var err error
+	dbTest, err = dbs.Connect(cfg.DatabaseURI)
+	if err != nil {
+		logger.Fatal("Cannot connect to database", err)
+	}
 
-	container := app.BuildContainer()
-	testRouter = app.InitGinEngine(container)
+	validator := validation.New()
+	testCache = redis.New(redis.Config{
+		Address:  cfg.RedisURI,
+		Password: cfg.RedisPassword,
+		Database: cfg.RedisDB,
+	})
 
-	dbs.Database.Create(&models.User{
+	server := httpServer.NewServer(validator, dbTest, testCache)
+	_ = server.MapRoutes()
+	testRouter = server.GetEngine()
+
+	dbTest.Create(&userModel.User{
 		Email:    "test@test.com",
 		Password: "test123456",
 	})
 }
 
 func teardown() {
-	migrator := dbs.Database.Migrator()
-	migrator.DropTable(&models.User{}, &models.Product{}, &models.Order{}, &models.OrderLine{})
+	migrator := dbTest.Migrator()
+	migrator.DropTable(&userModel.User{}, &productModel.Product{}, &orderModel.Order{}, &orderModel.OrderLine{})
 }
 
 func makeRequest(method, url string, body interface{}, token string) *httptest.ResponseRecorder {
@@ -64,24 +83,24 @@ func makeRequest(method, url string, body interface{}, token string) *httptest.R
 }
 
 func accessToken() string {
-	user := serializers.LoginReq{
+	user := dto.LoginReq{
 		Email:    "test@test.com",
 		Password: "test123456",
 	}
 
-	writer := makeRequest("POST", "/auth/login", user, "")
+	writer := makeRequest("POST", "/api/v1/auth/login", user, "")
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	return response["result"]["access_token"]
 }
 
 func refreshToken() string {
-	user := serializers.LoginReq{
+	user := dto.LoginReq{
 		Email:    "test@test.com",
 		Password: "test123456",
 	}
 
-	writer := makeRequest("POST", "/auth/login", user, "")
+	writer := makeRequest("POST", "/api/v1/auth/login", user, "")
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	return response["result"]["refresh_token"]
@@ -91,4 +110,16 @@ func parseResponseResult(resData []byte, result interface{}) {
 	var response map[string]interface{}
 	_ = json.Unmarshal(resData, &response)
 	utils.Copy(result, response["result"])
+}
+
+func cleanData(records ...interface{}) {
+	dbTest.Where("1 = 1").Delete(&orderModel.OrderLine{})
+	dbTest.Where("1 = 1").Delete(&productModel.Product{})
+	dbTest.Where("1 = 1").Delete(&orderModel.Order{})
+
+	for _, record := range records {
+		dbTest.Delete(record)
+	}
+
+	testCache.RemovePattern("*")
 }

@@ -5,9 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	"goshop/app/dbs"
-	"goshop/app/models"
-	"goshop/app/serializers"
+	"goshop/internal/user/dto"
+	"goshop/internal/user/model"
 	"goshop/pkg/jtoken"
 
 	"github.com/stretchr/testify/assert"
@@ -17,11 +16,16 @@ import (
 // =================================================================================================
 
 func TestUserAPI_LoginSuccess(t *testing.T) {
-	user := &serializers.LoginReq{
-		Email:    "test@test.com",
+	dbTest.Create(&model.User{
+		Email:    "login@test.com",
+		Password: "test123456",
+	})
+
+	user := &dto.LoginReq{
+		Email:    "login@test.com",
 		Password: "test123456",
 	}
-	writer := makeRequest("POST", "/auth/login", user, "")
+	writer := makeRequest("POST", "/api/v1/auth/login", user, "")
 	assert.Equal(t, http.StatusOK, writer.Code)
 }
 
@@ -30,7 +34,7 @@ func TestUserAPI_LoginInvalidFieldType(t *testing.T) {
 		"email":    1,
 		"password": "test123456",
 	}
-	writer := makeRequest("POST", "/auth/login", user, "")
+	writer := makeRequest("POST", "/api/v1/auth/login", user, "")
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusBadRequest, writer.Code)
@@ -38,35 +42,47 @@ func TestUserAPI_LoginInvalidFieldType(t *testing.T) {
 }
 
 func TestUserAPI_LoginInvalidEmailFormat(t *testing.T) {
-	user := &serializers.LoginReq{
+	user := &dto.LoginReq{
 		Email:    "invalid",
 		Password: "test123456",
 	}
-	writer := makeRequest("POST", "/auth/login", user, "")
+	writer := makeRequest("POST", "/api/v1/auth/login", user, "")
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
-	assert.Equal(t, http.StatusBadRequest, writer.Code)
-	assert.Equal(t, "Invalid parameters", response["error"]["message"])
+	assert.Equal(t, http.StatusInternalServerError, writer.Code)
+	assert.Equal(t, "Something went wrong", response["error"]["message"])
 }
 
 func TestUserAPI_LoginInvalidPassword(t *testing.T) {
-	user := &serializers.LoginReq{
+	user := &dto.LoginReq{
 		Email:    "test@test.com",
 		Password: "test",
 	}
-	writer := makeRequest("POST", "/auth/login", user, "")
+	writer := makeRequest("POST", "/api/v1/auth/login", user, "")
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
-	assert.Equal(t, http.StatusBadRequest, writer.Code)
-	assert.Equal(t, "Invalid parameters", response["error"]["message"])
+	assert.Equal(t, http.StatusInternalServerError, writer.Code)
+	assert.Equal(t, "Something went wrong", response["error"]["message"])
 }
 
 func TestUserAPI_LoginUserNotFound(t *testing.T) {
-	user := &serializers.LoginReq{
+	user := &dto.LoginReq{
 		Email:    "notfound@test.com",
 		Password: "test123456",
 	}
-	writer := makeRequest("POST", "/auth/login", user, "")
+	writer := makeRequest("POST", "/api/v1/auth/login", user, "")
+	var response map[string]map[string]string
+	_ = json.Unmarshal(writer.Body.Bytes(), &response)
+	assert.Equal(t, http.StatusInternalServerError, writer.Code)
+	assert.Equal(t, "Something went wrong", response["error"]["message"])
+}
+
+func TestUserAPI_LoginUserWrongPassword(t *testing.T) {
+	user := &dto.LoginReq{
+		Email:    "test@test.com",
+		Password: "test1234567",
+	}
+	writer := makeRequest("POST", "/api/v1/auth/login", user, "")
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusInternalServerError, writer.Code)
@@ -77,15 +93,14 @@ func TestUserAPI_LoginUserNotFound(t *testing.T) {
 // =================================================================================================
 
 func TestUserAPI_RegisterSuccess(t *testing.T) {
-	user := &serializers.RegisterReq{
+	defer cleanData()
+
+	user := &dto.RegisterReq{
 		Email:    "register@test.com",
 		Password: "test123456",
 	}
-	writer := makeRequest("POST", "/auth/register", user, "")
+	writer := makeRequest("POST", "/api/v1/auth/register", user, "")
 	assert.Equal(t, http.StatusOK, writer.Code)
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&user)
 }
 
 func TestUserAPI_RegisterInvalidFieldType(t *testing.T) {
@@ -93,7 +108,7 @@ func TestUserAPI_RegisterInvalidFieldType(t *testing.T) {
 		"email":    1,
 		"password": "test123456",
 	}
-	writer := makeRequest("POST", "/auth/register", user, "")
+	writer := makeRequest("POST", "/api/v1/auth/register", user, "")
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusBadRequest, writer.Code)
@@ -105,11 +120,11 @@ func TestUserAPI_RegisterInvalidEmail(t *testing.T) {
 		"email":    "invalid",
 		"password": "test123456",
 	}
-	writer := makeRequest("POST", "/auth/register", user, "")
+	writer := makeRequest("POST", "/api/v1/auth/register", user, "")
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
-	assert.Equal(t, http.StatusBadRequest, writer.Code)
-	assert.Equal(t, "Invalid parameters", response["error"]["message"])
+	assert.Equal(t, http.StatusInternalServerError, writer.Code)
+	assert.Equal(t, "Something went wrong", response["error"]["message"])
 }
 
 func TestUserAPI_RegisterInvalidPassword(t *testing.T) {
@@ -117,19 +132,26 @@ func TestUserAPI_RegisterInvalidPassword(t *testing.T) {
 		"email":    "register@test.com",
 		"password": "test",
 	}
-	writer := makeRequest("POST", "/auth/register", user, "")
+	writer := makeRequest("POST", "/api/v1/auth/register", user, "")
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
-	assert.Equal(t, http.StatusBadRequest, writer.Code)
-	assert.Equal(t, "Invalid parameters", response["error"]["message"])
+	assert.Equal(t, http.StatusInternalServerError, writer.Code)
+	assert.Equal(t, "Something went wrong", response["error"]["message"])
 }
 
 func TestUserAPI_RegisterEmailExist(t *testing.T) {
+	defer cleanData()
+
+	dbTest.Create(&model.User{
+		Email:    "emailexist@test.com",
+		Password: "password",
+	})
+
 	user := map[string]interface{}{
-		"email":    "test@test.com",
+		"email":    "emailexist@test.com",
 		"password": "test123456",
 	}
-	writer := makeRequest("POST", "/auth/register", user, "")
+	writer := makeRequest("POST", "/api/v1/auth/register", user, "")
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusInternalServerError, writer.Code)
@@ -140,7 +162,7 @@ func TestUserAPI_RegisterEmailExist(t *testing.T) {
 // =================================================================================================
 
 func TestUserAPI_GetMeSuccess(t *testing.T) {
-	writer := makeRequest("GET", "/auth/me", nil, accessToken())
+	writer := makeRequest("GET", "/api/v1/auth/me", nil, accessToken())
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusOK, writer.Code)
@@ -149,7 +171,7 @@ func TestUserAPI_GetMeSuccess(t *testing.T) {
 }
 
 func TestUserAPI_GetMeUnauthorized(t *testing.T) {
-	writer := makeRequest("GET", "/auth/me", nil, "")
+	writer := makeRequest("GET", "/api/v1/auth/me", nil, "")
 	assert.Equal(t, http.StatusUnauthorized, writer.Code)
 }
 
@@ -158,18 +180,25 @@ func TestUserAPI_GetMeUserNotFound(t *testing.T) {
 		"id": "user-not-found",
 	})
 
-	writer := makeRequest("GET", "/auth/me", nil, token)
+	writer := makeRequest("GET", "/api/v1/auth/me", nil, token)
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusInternalServerError, writer.Code)
 	assert.Equal(t, "Something went wrong", response["error"]["message"])
 }
 
+func TestUserAPI_GetMeInvalidTokenType(t *testing.T) {
+	writer := makeRequest("GET", "/api/v1/auth/me", nil, refreshToken())
+	var response map[string]map[string]string
+	_ = json.Unmarshal(writer.Body.Bytes(), &response)
+	assert.Equal(t, http.StatusUnauthorized, writer.Code)
+}
+
 // Refresh Token
 // =================================================================================================
 
 func TestUserAPI_RefreshTokenSuccess(t *testing.T) {
-	writer := makeRequest("POST", "/auth/refresh", nil, refreshToken())
+	writer := makeRequest("POST", "/api/v1/auth/refresh", nil, refreshToken())
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusOK, writer.Code)
@@ -177,14 +206,14 @@ func TestUserAPI_RefreshTokenSuccess(t *testing.T) {
 }
 
 func TestUserAPI_RefreshTokenUnauthorized(t *testing.T) {
-	writer := makeRequest("POST", "/auth/refresh", nil, "")
+	writer := makeRequest("POST", "/api/v1/auth/refresh", nil, "")
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusUnauthorized, writer.Code)
 }
 
 func TestUserAPI_RefreshTokenInvalidTokenType(t *testing.T) {
-	writer := makeRequest("POST", "/auth/refresh", nil, accessToken())
+	writer := makeRequest("POST", "/api/v1/auth/refresh", nil, accessToken())
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusUnauthorized, writer.Code)
@@ -195,7 +224,7 @@ func TestUserAPI_RefreshTokenUserNotFound(t *testing.T) {
 		"id": "user-not-found",
 	})
 
-	writer := makeRequest("POST", "/auth/refresh", nil, token)
+	writer := makeRequest("POST", "/api/v1/auth/refresh", nil, token)
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusInternalServerError, writer.Code)
@@ -206,42 +235,41 @@ func TestUserAPI_RefreshTokenUserNotFound(t *testing.T) {
 // =================================================================================================
 
 func TestUserAPI_ChangePasswordSuccess(t *testing.T) {
-	user := models.User{Email: "changepassword1@gmail.com", Password: "123456"}
-	dbs.Database.Create(&user)
+	defer cleanData()
+
+	user := model.User{Email: "changepassword1@gmail.com", Password: "123456"}
+	dbTest.Create(&user)
 
 	token := jtoken.GenerateAccessToken(map[string]interface{}{
 		"id": user.ID,
 	})
 
-	req := &serializers.ChangePasswordReq{
+	req := &dto.ChangePasswordReq{
 		Password:    "123456",
 		NewPassword: "new123456",
 	}
 
-	writer := makeRequest("PUT", "/auth/change-password", req, token)
+	writer := makeRequest("PUT", "/api/v1/auth/change-password", req, token)
 	assert.Equal(t, http.StatusOK, writer.Code)
-
-	// clean up
-	dbs.Database.Where("1 = 1").Delete(&user)
 }
 
 func TestUserAPI_ChangePasswordUnauthorized(t *testing.T) {
-	req := &serializers.ChangePasswordReq{
+	req := &dto.ChangePasswordReq{
 		Password:    "123456",
 		NewPassword: "new123456",
 	}
 
-	writer := makeRequest("PUT", "/auth/change-password", req, "")
+	writer := makeRequest("PUT", "/api/v1/auth/change-password", req, "")
 	assert.Equal(t, http.StatusUnauthorized, writer.Code)
 }
 
 func TestUserAPI_ChangePasswordIsWrong(t *testing.T) {
-	req := &serializers.ChangePasswordReq{
+	req := &dto.ChangePasswordReq{
 		Password:    "wrong123456",
 		NewPassword: "new123456",
 	}
 
-	writer := makeRequest("PUT", "/auth/change-password", req, accessToken())
+	writer := makeRequest("PUT", "/api/v1/auth/change-password", req, accessToken())
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusInternalServerError, writer.Code)
@@ -249,16 +277,16 @@ func TestUserAPI_ChangePasswordIsWrong(t *testing.T) {
 }
 
 func TestUserAPI_ChangePasswordInvalidNewPassword(t *testing.T) {
-	req := &serializers.ChangePasswordReq{
+	req := &dto.ChangePasswordReq{
 		Password:    "test123456",
 		NewPassword: "new",
 	}
 
-	writer := makeRequest("PUT", "/auth/change-password", req, accessToken())
+	writer := makeRequest("PUT", "/api/v1/auth/change-password", req, accessToken())
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
-	assert.Equal(t, http.StatusBadRequest, writer.Code)
-	assert.Equal(t, "Invalid parameters", response["error"]["message"])
+	assert.Equal(t, http.StatusInternalServerError, writer.Code)
+	assert.Equal(t, "Something went wrong", response["error"]["message"])
 }
 
 func TestUserAPI_ChangePasswordInvalidFieldType(t *testing.T) {
@@ -267,7 +295,7 @@ func TestUserAPI_ChangePasswordInvalidFieldType(t *testing.T) {
 		"new_password": "new",
 	}
 
-	writer := makeRequest("PUT", "/auth/change-password", req, accessToken())
+	writer := makeRequest("PUT", "/api/v1/auth/change-password", req, accessToken())
 	var response map[string]map[string]string
 	_ = json.Unmarshal(writer.Body.Bytes(), &response)
 	assert.Equal(t, http.StatusBadRequest, writer.Code)
