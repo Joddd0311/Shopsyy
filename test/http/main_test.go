@@ -1,7 +1,8 @@
-package test
+package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,9 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/quangdangfit/gocommon/logger"
-	"github.com/quangdangfit/gocommon/redis"
 	"github.com/quangdangfit/gocommon/validation"
-	"gorm.io/gorm"
 
 	orderModel "goshop/internal/order/model"
 	productModel "goshop/internal/product/model"
@@ -21,13 +20,14 @@ import (
 	userModel "goshop/internal/user/model"
 	"goshop/pkg/config"
 	"goshop/pkg/dbs"
+	"goshop/pkg/redis"
 	"goshop/pkg/utils"
 )
 
 var (
 	testRouter *gin.Engine
-	dbTest     *gorm.DB
-	testCache  redis.IRedis
+	dbTest     dbs.Database
+	testCache  redis.Redis
 )
 
 func TestMain(m *testing.M) {
@@ -40,13 +40,18 @@ func TestMain(m *testing.M) {
 }
 
 func setup() {
-	cfg := config.GetConfig()
-	logger.Initialize(config.TestEnv)
+	cfg := config.LoadConfig()
+	logger.Initialize(config.ProductionEnv)
 
 	var err error
-	dbTest, err = dbs.Connect(cfg.DatabaseURI)
+	dbTest, err = dbs.NewDatabase(cfg.DatabaseURI)
 	if err != nil {
 		logger.Fatal("Cannot connect to database", err)
+	}
+
+	err = dbTest.AutoMigrate(&userModel.User{}, &productModel.Product{}, orderModel.Order{}, orderModel.OrderLine{})
+	if err != nil {
+		logger.Fatal("Database migration fail", err)
 	}
 
 	validator := validation.New()
@@ -60,14 +65,14 @@ func setup() {
 	_ = server.MapRoutes()
 	testRouter = server.GetEngine()
 
-	dbTest.Create(&userModel.User{
+	dbTest.Create(context.Background(), &userModel.User{
 		Email:    "test@test.com",
 		Password: "test123456",
 	})
 }
 
 func teardown() {
-	migrator := dbTest.Migrator()
+	migrator := dbTest.GetDB().Migrator()
 	migrator.DropTable(&userModel.User{}, &productModel.Product{}, &orderModel.Order{}, &orderModel.OrderLine{})
 }
 
@@ -113,12 +118,12 @@ func parseResponseResult(resData []byte, result interface{}) {
 }
 
 func cleanData(records ...interface{}) {
-	dbTest.Where("1 = 1").Delete(&orderModel.OrderLine{})
-	dbTest.Where("1 = 1").Delete(&productModel.Product{})
-	dbTest.Where("1 = 1").Delete(&orderModel.Order{})
+	dbTest.GetDB().Where("1 = 1").Delete(&orderModel.OrderLine{})
+	dbTest.GetDB().Where("1 = 1").Delete(&productModel.Product{})
+	dbTest.GetDB().Where("1 = 1").Delete(&orderModel.Order{})
 
 	for _, record := range records {
-		dbTest.Delete(record)
+		dbTest.Delete(context.Background(), record)
 	}
 
 	testCache.RemovePattern("*")

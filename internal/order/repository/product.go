@@ -3,32 +3,26 @@ package repository
 import (
 	"context"
 
-	"gorm.io/gorm"
-
 	"goshop/internal/order/model"
-	"goshop/pkg/config"
+	"goshop/pkg/dbs"
 )
 
-//go:generate mockery --name=IProductRepository
-type IProductRepository interface {
+//go:generate mockery --name=ProductRepository
+type ProductRepository interface {
 	GetProductByID(ctx context.Context, id string) (*model.Product, error)
 }
 
-type ProductRepo struct {
-	db *gorm.DB
+type productRepo struct {
+	db dbs.Database
 }
 
-func NewProductRepository(db *gorm.DB) *ProductRepo {
-	_ = db.AutoMigrate(&model.Product{})
-	return &ProductRepo{db: db}
+func NewProductRepository(db dbs.Database) ProductRepository {
+	return &productRepo{db: db}
 }
 
-func (r *ProductRepo) GetProductByID(ctx context.Context, id string) (*model.Product, error) {
-	ctx, cancel := context.WithTimeout(ctx, config.DatabaseTimeout)
-	defer cancel()
-
+func (r *productRepo) GetProductByID(ctx context.Context, id string) (*model.Product, error) {
 	var product model.Product
-	if err := r.db.Where("id = ?", id).First(&product).Error; err != nil {
+	if err := r.db.FindById(ctx, id, &product); err != nil {
 		return nil, err
 	}
 

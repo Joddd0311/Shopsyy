@@ -2,7 +2,6 @@ package config
 
 import (
 	"log"
-	"os"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -13,15 +12,20 @@ import (
 
 const (
 	ProductionEnv = "production"
-	TestEnv       = "testing"
 
 	DatabaseTimeout    = 5 * time.Second
-	ProductCachingTime = 5 * time.Minute
+	ProductCachingTime = 1 * time.Minute
 )
+
+var AuthIgnoreMethods = []string{
+	"/user.UserService/Login",
+	"/user.UserService/Register",
+}
 
 type Schema struct {
 	Environment   string `env:"environment"`
-	Port          int    `env:"port"`
+	HttpPort      int    `env:"http_port"`
+	GrpcPort      int    `env:"grpc_port"`
 	AuthSecret    string `env:"auth_secret"`
 	DatabaseURI   string `env:"database_uri"`
 	RedisURI      string `env:"redis_uri"`
@@ -33,19 +37,20 @@ var (
 	cfg Schema
 )
 
-func init() {
+func LoadConfig() *Schema {
 	_, filename, _, _ := runtime.Caller(0)
 	currentDir := filepath.Dir(filename)
 
-	environment := os.Getenv("environment")
 	err := godotenv.Load(filepath.Join(currentDir, "config.yaml"))
-	if err != nil && environment != TestEnv {
-		log.Fatalf("Error on load configuration file, error: %v", err)
+	if err != nil {
+		log.Printf("Error on load configuration file, error: %v", err)
 	}
 
 	if err := env.Parse(&cfg); err != nil {
 		log.Fatalf("Error on parsing configuration file, error: %v", err)
 	}
+
+	return &cfg
 }
 
 func GetConfig() *Schema {

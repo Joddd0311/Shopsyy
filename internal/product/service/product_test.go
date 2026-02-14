@@ -19,15 +19,15 @@ import (
 
 type ProductServiceTestSuite struct {
 	suite.Suite
-	mockRepo *mocks.IProductRepository
-	service  IProductService
+	mockRepo *mocks.ProductRepository
+	service  ProductService
 }
 
 func (suite *ProductServiceTestSuite) SetupTest() {
-	logger.Initialize(config.TestEnv)
+	logger.Initialize(config.ProductionEnv)
 
 	validator := validation.New()
-	suite.mockRepo = mocks.NewIProductRepository(suite.T())
+	suite.mockRepo = mocks.NewProductRepository(suite.T())
 	suite.service = NewProductService(validator, suite.mockRepo)
 }
 
@@ -163,6 +163,17 @@ func (suite *ProductServiceTestSuite) TestCreateFail() {
 	suite.NotNil(err)
 }
 
+func (suite *ProductServiceTestSuite) TestCreateMissProductName() {
+	req := &dto.CreateProductReq{
+		Description: "product description",
+		Price:       1.1,
+	}
+
+	product, err := suite.service.Create(context.Background(), req)
+	suite.Nil(product)
+	suite.NotNil(err)
+}
+
 // Update
 // =================================================================
 
@@ -217,6 +228,19 @@ func (suite *ProductServiceTestSuite) TestUpdateFail() {
 		Description: "product description",
 		Price:       1.1,
 	}).Return(errors.New("error")).Times(1)
+
+	product, err := suite.service.Update(context.Background(), productID, req)
+	suite.Nil(product)
+	suite.NotNil(err)
+}
+
+func (suite *ProductServiceTestSuite) TestUpdateInvalidPrice() {
+	productID := "productID"
+	req := &dto.UpdateProductReq{
+		Name:        "product",
+		Description: "product description",
+		Price:       -1.1,
+	}
 
 	product, err := suite.service.Update(context.Background(), productID, req)
 	suite.Nil(product)

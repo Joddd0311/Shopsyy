@@ -7,15 +7,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/quangdangfit/gocommon/logger"
-	"github.com/quangdangfit/gocommon/redis"
 	"github.com/quangdangfit/gocommon/validation"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	"gorm.io/gorm"
 
 	_ "goshop/docs"
+	cartHttp "goshop/internal/cart/port/http"
+	orderHttp "goshop/internal/order/port/http"
+	productHttp "goshop/internal/product/port/http"
+	userHttp "goshop/internal/user/port/http"
 	"goshop/pkg/config"
-
+	"goshop/pkg/dbs"
+	"goshop/pkg/redis"
 	"goshop/pkg/response"
 )
 
@@ -23,11 +26,11 @@ type Server struct {
 	engine    *gin.Engine
 	cfg       *config.Schema
 	validator validation.Validation
-	db        *gorm.DB
-	cache     redis.IRedis
+	db        dbs.Database
+	cache     redis.Redis
 }
 
-func NewServer(validator validation.Validation, db *gorm.DB, cache redis.IRedis) *Server {
+func NewServer(validator validation.Validation, db dbs.Database, cache redis.Redis) *Server {
 	return &Server{
 		engine:    gin.Default(),
 		cfg:       config.GetConfig(),
@@ -39,6 +42,9 @@ func NewServer(validator validation.Validation, db *gorm.DB, cache redis.IRedis)
 
 func (s Server) Run() error {
 	_ = s.engine.SetTrustedProxies(nil)
+	if s.cfg.Environment == config.ProductionEnv {
+		gin.SetMode(gin.ReleaseMode)
+	}
 
 	if err := s.MapRoutes(); err != nil {
 		log.Fatalf("MapRoutes Error: %v", err)
@@ -49,9 +55,9 @@ func (s Server) Run() error {
 		return
 	})
 
-	// Start server
-	logger.Info("Server is listening on PORT: ", s.cfg.Port)
-	if err := s.engine.Run(fmt.Sprintf(":%d", s.cfg.Port)); err != nil {
+	// Start http server
+	logger.Info("HTTP server is listening on PORT: ", s.cfg.HttpPort)
+	if err := s.engine.Run(fmt.Sprintf(":%d", s.cfg.HttpPort)); err != nil {
 		log.Fatalf("Running HTTP server: %v", err)
 	}
 
@@ -60,4 +66,13 @@ func (s Server) Run() error {
 
 func (s Server) GetEngine() *gin.Engine {
 	return s.engine
+}
+
+func (s Server) MapRoutes() error {
+	v1 := s.engine.Group("/api/v1")
+	userHttp.Routes(v1, s.db, s.validator)
+	productHttp.Routes(v1, s.db, s.validator, s.cache)
+	orderHttp.Routes(v1, s.db, s.validator)
+	cartHttp.Routes(v1, s.db, s.validator)
+	return nil
 }
