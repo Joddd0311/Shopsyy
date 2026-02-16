@@ -31,115 +31,209 @@ func TestCartRepositoryTestSuite(t *testing.T) {
 	suite.Run(t, new(CartRepositoryTestSuite))
 }
 
-// Create
-// =================================================================
-
-func (suite *CartRepositoryTestSuite) TestCreateCartSuccessfully() {
-	cart := &model.Cart{
-		UserID: "userID",
-		Lines: []*model.CartLine{
-			{
-				ProductID: "productID1",
-				Quantity:  4,
-			},
-			{
-				ProductID: "productID2",
-				Quantity:  3,
+func (suite *CartRepositoryTestSuite) TestCreate() {
+	tests := []struct {
+		name    string
+		setup   func()
+		wantErr bool
+	}{
+		{
+			name: "Success",
+			setup: func() {
+				suite.mockDB.On("Create", mock.Anything, mock.Anything).Return(nil).Times(1)
 			},
 		},
-	}
-	suite.mockDB.On("Create", mock.Anything, cart).
-		Return(nil).Times(1)
-
-	err := suite.repo.Create(context.Background(), cart)
-	suite.Nil(err)
-}
-
-func (suite *CartRepositoryTestSuite) TestCreateCartFail() {
-	cart := &model.Cart{
-		UserID: "userID",
-		Lines: []*model.CartLine{
-			{
-				ProductID: "productID1",
-				Quantity:  4,
+		{
+			name: "DB error",
+			setup: func() {
+				suite.mockDB.On("Create", mock.Anything, mock.Anything).Return(errors.New("error")).Times(1)
 			},
-			{
-				ProductID: "productID2",
-				Quantity:  3,
-			},
+			wantErr: true,
 		},
 	}
-	suite.mockDB.On("Create", mock.Anything, cart).
-		Return(errors.New("error")).Times(1)
-
-	err := suite.repo.Create(context.Background(), cart)
-	suite.NotNil(err)
+	for _, tc := range tests {
+		suite.Run(tc.name, func() {
+			suite.SetupTest()
+			tc.setup()
+			cart := &model.Cart{
+				UserID: "userID",
+				Lines: []*model.CartLine{
+					{ProductID: "productID1", Quantity: 4},
+					{ProductID: "productID2", Quantity: 3},
+				},
+			}
+			err := suite.repo.Create(context.Background(), cart)
+			if tc.wantErr {
+				suite.NotNil(err)
+			} else {
+				suite.Nil(err)
+			}
+		})
+	}
 }
 
-// Update
-// =================================================================
-
-func (suite *CartRepositoryTestSuite) TestUpdateCartSuccessfully() {
-	cart := &model.Cart{
-		ID:     "cartId1",
-		UserID: "userID",
-		Lines: []*model.CartLine{
-			{
-				ProductID: "productID1",
-				Quantity:  4,
-			},
-			{
-				ProductID: "productID2",
-				Quantity:  3,
+func (suite *CartRepositoryTestSuite) TestUpdate() {
+	tests := []struct {
+		name    string
+		setup   func()
+		wantErr bool
+		empty   bool
+	}{
+		{
+			name: "Success",
+			setup: func() {
+				suite.mockDB.On("Update", mock.Anything, mock.Anything).Return(nil).Times(2)
 			},
 		},
-	}
-	suite.mockDB.On("Update", mock.Anything, cart).
-		Return(nil).Times(1)
-
-	err := suite.repo.Update(context.Background(), cart)
-	suite.Nil(err)
-}
-
-func (suite *CartRepositoryTestSuite) TestUpdateCartFail() {
-	cart := &model.Cart{
-		ID:     "cartId1",
-		UserID: "userID",
-		Lines: []*model.CartLine{
-			{
-				ProductID: "productID1",
-				Quantity:  4,
+		{
+			name: "Fail",
+			setup: func() {
+				suite.mockDB.On("Update", mock.Anything, mock.Anything).Return(errors.New("error")).Times(1)
 			},
-			{
-				ProductID: "productID2",
-				Quantity:  3,
-			},
+			wantErr: true,
+		},
+		{
+			name:  "Empty lines",
+			setup: func() {},
+			empty: true,
 		},
 	}
-	suite.mockDB.On("Update", mock.Anything, cart).
-		Return(errors.New("error")).Times(1)
-
-	err := suite.repo.Update(context.Background(), cart)
-	suite.NotNil(err)
+	for _, tc := range tests {
+		suite.Run(tc.name, func() {
+			suite.SetupTest()
+			tc.setup()
+			var lines []*model.CartLine
+			if !tc.empty {
+				if tc.wantErr {
+					lines = []*model.CartLine{{CartID: "cartId1", ProductID: "productID1", Quantity: 4}}
+				} else {
+					lines = []*model.CartLine{
+						{CartID: "cartId1", ProductID: "productID1", Quantity: 4},
+						{CartID: "cartId1", ProductID: "productID2", Quantity: 3},
+					}
+				}
+			} else {
+				lines = []*model.CartLine{}
+			}
+			cart := &model.Cart{ID: "cartId1", UserID: "userID", Lines: lines}
+			err := suite.repo.Update(context.Background(), cart)
+			if tc.wantErr {
+				suite.NotNil(err)
+			} else {
+				suite.Nil(err)
+			}
+		})
+	}
 }
 
-// GetCartByUserID
-// =================================================================
-
-func (suite *CartRepositoryTestSuite) TestGetCartByUserIDSuccessfully() {
-	suite.mockDB.On("FindOne", mock.Anything, &model.Cart{}, mock.Anything, mock.Anything).
-		Return(nil).Times(1)
-
-	cart, err := suite.repo.GetCartByUserID(context.Background(), "userId")
-	suite.Nil(err)
-	suite.NotNil(cart)
+func (suite *CartRepositoryTestSuite) TestGetCartByUserID() {
+	tests := []struct {
+		name    string
+		setup   func()
+		wantErr bool
+	}{
+		{
+			name: "Success",
+			setup: func() {
+				suite.mockDB.On("FindOne", mock.Anything, &model.Cart{}, mock.Anything, mock.Anything).Return(nil).Times(1)
+			},
+		},
+		{
+			name: "Not found",
+			setup: func() {
+				suite.mockDB.On("FindOne", mock.Anything, &model.Cart{}, mock.Anything, mock.Anything).Return(errors.New("error")).Times(1)
+			},
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		suite.Run(tc.name, func() {
+			suite.SetupTest()
+			tc.setup()
+			cart, err := suite.repo.GetCartByUserID(context.Background(), "userId")
+			if tc.wantErr {
+				suite.NotNil(err)
+				suite.Nil(cart)
+			} else {
+				suite.Nil(err)
+				suite.NotNil(cart)
+			}
+		})
+	}
 }
 
-func (suite *CartRepositoryTestSuite) TestGetCartByUserIDFail() {
-	suite.mockDB.On("FindOne", mock.Anything, &model.Cart{}, mock.Anything, mock.Anything).
-		Return(errors.New("error")).Times(1)
+func (suite *CartRepositoryTestSuite) TestDeleteLine() {
+	tests := []struct {
+		name    string
+		setup   func()
+		wantErr bool
+	}{
+		{
+			name: "Success",
+			setup: func() {
+				suite.mockDB.On("Delete", mock.Anything, &model.CartLine{}, mock.Anything).Return(nil).Times(1)
+			},
+		},
+		{
+			name: "DB error",
+			setup: func() {
+				suite.mockDB.On("Delete", mock.Anything, &model.CartLine{}, mock.Anything).Return(errors.New("error")).Times(1)
+			},
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		suite.Run(tc.name, func() {
+			suite.SetupTest()
+			tc.setup()
+			err := suite.repo.DeleteLine(context.Background(), "cartID", "productID")
+			if tc.wantErr {
+				suite.NotNil(err)
+			} else {
+				suite.Nil(err)
+			}
+		})
+	}
+}
 
-	cart, err := suite.repo.GetCartByUserID(context.Background(), "userId")
-	suite.NotNil(err)
-	suite.Nil(cart)
+func (suite *CartRepositoryTestSuite) TestClearCart() {
+	tests := []struct {
+		name    string
+		setup   func()
+		wantErr bool
+	}{
+		{
+			name: "Success",
+			setup: func() {
+				suite.mockDB.On("FindOne", mock.Anything, &model.Cart{}, mock.Anything, mock.Anything).Return(nil).Times(1)
+				suite.mockDB.On("Delete", mock.Anything, &model.CartLine{}, mock.Anything).Return(nil).Times(1)
+			},
+		},
+		{
+			name: "Cart not found",
+			setup: func() {
+				suite.mockDB.On("FindOne", mock.Anything, &model.Cart{}, mock.Anything, mock.Anything).Return(errors.New("not found")).Times(1)
+			},
+		},
+		{
+			name: "Delete fail",
+			setup: func() {
+				suite.mockDB.On("FindOne", mock.Anything, &model.Cart{}, mock.Anything, mock.Anything).Return(nil).Times(1)
+				suite.mockDB.On("Delete", mock.Anything, &model.CartLine{}, mock.Anything).Return(errors.New("delete error")).Times(1)
+			},
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		suite.Run(tc.name, func() {
+			suite.SetupTest()
+			tc.setup()
+			err := suite.repo.ClearCart(context.Background(), "userID")
+			if tc.wantErr {
+				suite.NotNil(err)
+			} else {
+				suite.Nil(err)
+			}
+		})
+	}
 }

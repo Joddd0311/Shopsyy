@@ -11,6 +11,8 @@ import (
 type CartRepository interface {
 	Create(ctx context.Context, cart *model.Cart) error
 	Update(ctx context.Context, cart *model.Cart) error
+	DeleteLine(ctx context.Context, cartID, productID string) error
+	ClearCart(ctx context.Context, userID string) error
 	GetCartByUserID(ctx context.Context, userID string) (*model.Cart, error)
 }
 
@@ -27,7 +29,32 @@ func (r *cartRepo) Create(ctx context.Context, cart *model.Cart) error {
 }
 
 func (r *cartRepo) Update(ctx context.Context, cart *model.Cart) error {
-	return r.db.Update(ctx, cart)
+	for _, line := range cart.Lines {
+		line.CartID = cart.ID
+		// Nil out Product to avoid GORM cascade-saving the nested product
+		product := line.Product
+		line.Product = nil
+		if err := r.db.Update(ctx, line); err != nil {
+			line.Product = product
+			return err
+		}
+		line.Product = product
+	}
+	return nil
+}
+
+func (r *cartRepo) DeleteLine(ctx context.Context, cartID, productID string) error {
+	return r.db.Delete(ctx, &model.CartLine{},
+		dbs.WithQuery(dbs.NewQuery("cart_id = ? AND product_id = ?", cartID, productID)))
+}
+
+func (r *cartRepo) ClearCart(ctx context.Context, userID string) error {
+	cart, err := r.GetCartByUserID(ctx, userID)
+	if err != nil {
+		return nil // cart doesn't exist, nothing to clear
+	}
+	return r.db.Delete(ctx, &model.CartLine{},
+		dbs.WithQuery(dbs.NewQuery("cart_id = ?", cart.ID)))
 }
 
 func (r *cartRepo) GetCartByUserID(ctx context.Context, userID string) (*model.Cart, error) {
