@@ -1,9 +1,7 @@
 # GoShop
 
-[![CI](https://github.com/quangdangfit/goshop/workflows/CI/badge.svg)](https://github.com/quangdangfit/goshop/actions)
-[![codecov](https://codecov.io/gh/quangdangfit/goshop/graph/badge.svg?token=78BO8FQDB0)](https://codecov.io/gh/quangdangfit/goshop)
 ![Go Version](https://img.shields.io/github/go-mod/go-version/quangdangfit/goshop?style=flat-square)
-[![License](https://img.shields.io/github/license/jrapoport/gothic?style=flat-square)](https://github.com/quangdangfit/goshop/blob/master/LICENSE)
+
 
 A production-ready e-commerce application built with Go (REST + gRPC backend) and React (web frontend).
 
@@ -75,11 +73,6 @@ Docker Compose for local dependencies: [docker-compose-template](https://github.
 
 **1. Clone and configure**
 
-```bash
-git clone https://github.com/quangdangfit/goshop.git
-cd goshop
-cp pkg/config/config.sample.yaml pkg/config/config.yaml
-```
 
 Edit `pkg/config/config.yaml`:
 
